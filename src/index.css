@@ -1,13 +1,109 @@
-body {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+}
+h1 {
+  font-size: clamp(10px, 1.2vw, 50px);
+}
+h2 {
+  font-size: clamp(10px, 0.8vw, 50px);
+}
+input[type="number"] {
+  --moz-appearance: textfield;
+}
+/* Remove shadow from filter input */
+.no-shadow-panel .p-multiselect-filter-container input {
+  box-shadow: none !important;
+  border: 1px solid #d1d5db; /* optional: match your input border */
+  padding: 0.2rem 0.5rem;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+/* Optional: reduce extra padding/margin if needed */
+.no-shadow-panel .p-multiselect-filter-container {
+  margin: 0.25rem 0.75rem;
+}
+/* Style for checkbox inside the dropdown */
+.no-shadow-panel .p-checkbox-box {
+  border: 1px solid #d1d5db; /* custom border color */
+  border-radius: 2px; /* adjust roundness */
+}
+
+/* Optional: change checked state */
+.no-shadow-panel .p-checkbox-box.p-highlight {
+  border-color: #3a3a3a;
+  background-color: #848484;
+}
+:root {
+  --background: 0 0% 98%;
+  --foreground: 222.2 47.4% 11.2%;
+
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 96.4%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  --accent: 210 40% 85%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 210 40% 98%;
+
+  --ring: 215 20.2% 65.1%;
+
+  --radius: 0.5rem;
+
+  --chart-1: 220 70% 50%;
+  --chart-2: 40 90% 50%;
+  --chart-3: 130 60% 40%;
+  --chart-4: 350 80% 60%;
+  --chart-5: 200 90% 40%;
+
+  --sidebar-background: 222.2 47.4% 11.2%;
+  --sidebar-foreground: 210 40% 98%;
+  --sidebar-primary: 222.2 47.4% 11.2%;
+  --sidebar-primary-foreground: 210 40% 98%;
+  --sidebar-accent: 210 40% 98%;
+  --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+  --sidebar-border: 217.2 32.6% 17.5%;
+  --sidebar-ring: 222.2 47.4% 11.2%;
+  font-size: small;
+}
+/* Default hidden scrollbar */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* When visible */
+.scrollbar-visible::-webkit-scrollbar {
+  width: 5px;
+  height: 10px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: rgb(31 41 55 / var(--tw-bg-opacity, 1));
+  border-radius: 5px;
+}
+
+.scrollbar-visible::-webkit-scrollbar-thumb {
+  background: rgb(31 41 55 / var(--tw-bg-opacity, 1)); /* style as needed */
+  border-radius: 5px;
 }
