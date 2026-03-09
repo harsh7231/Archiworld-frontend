@@ -4,11 +4,19 @@ import storage from "redux-persist/lib/storage"; // defaults to localStorage
 import { persistReducer, persistStore } from "redux-persist";
 import { combineReducers } from "redux";
 import { plansReducer } from "./Components/SubscriptionPlan/subscriptionSlice";
+import { categoryReducer } from "./Components/CategoryManagement/categoriesSlice";
+import { materialOptionReducer } from "./Components/MaterialOptions/materialOptionsSlice";
+import { brandOptionReducer } from "./Components/BrandOptions/brandOptionsSlice";
+import { productsReducer } from "./Components/Product/ProductSlice";
 // STEP 1: Combine all slice reducers
 const appReducer = combineReducers({
   auth: authReducer,
   users: usersReducer,
   plan: plansReducer,
+  category: categoryReducer,
+  materialOption: materialOptionReducer,
+  brandOption: brandOptionReducer,
+  product: productsReducer,
 });
 
 // STEP 2: Handle logout reset in root reducer

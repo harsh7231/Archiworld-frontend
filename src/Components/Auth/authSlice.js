@@ -12,6 +12,8 @@ import {
   sendOTP,
   resendOTP,
   verifyOTP,
+  fetchUserById,
+  handleForgotPassword,
 } from "./authAPI";
 
 export const authSliceInitialState = {
@@ -66,6 +68,19 @@ const authSlice = createSlice({
         state.loading = false;
         state.error = action.payload;
       })
+      .addCase(handleForgotPassword.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.success = null;
+      })
+      .addCase(handleForgotPassword.fulfilled, (state) => {
+        state.loading = false;
+        state.success = "Password changed successfully!";
+      })
+      .addCase(handleForgotPassword.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      })
       .addCase(logoutUser.fulfilled, (state) => {
         localStorage.clear();
         state.user = null;
@@ -80,9 +95,10 @@ export const authReducer = authSlice.reducer;
 
 export const usersInitialState = {
   users: [],
+  userById: [],
   parentUser: [],
-  loading: false,
-  error: null,
+  loadingFetch: false,
+  errorFetch: null,
 };
 
 const userSlice = createSlice({
@@ -113,11 +129,23 @@ const userSlice = createSlice({
       })
       .addCase(fetchUsers.fulfilled, (state, action) => {
         state.loading = false;
-        state.users = action.payload; // Set the list of users
+        state.users = action.payload.users; // Set the list of users
       })
       .addCase(fetchUsers.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message;
+      })
+      .addCase(fetchUserById.pending, (state) => {
+        state.loadingFetch = true;
+        state.errorFetch = null;
+      })
+      .addCase(fetchUserById.fulfilled, (state, action) => {
+        state.loadingFetch = false;
+        state.userById = action.payload; // Set the list of users
+      })
+      .addCase(fetchUserById.rejected, (state, action) => {
+        state.loadingFetch = false;
+        state.errorFetch = action.error.message;
       })
       .addCase(fetchParentUsers.pending, (state) => {
         state.loading = true;
@@ -198,7 +226,9 @@ const userSlice = createSlice({
       .addCase(inActiveUser.fulfilled, (state, action) => {
         state.loading = false;
         state.success = "User deleted successfully.";
-        state.users = state.users.filter((user) => user._id !== action.payload.id);
+        state.users = state.users.filter(
+          (user) => user._id !== action.payload.id,
+        );
       })
       .addCase(inActiveUser.rejected, (state, action) => {
         state.loading = false;

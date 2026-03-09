@@ -8,16 +8,18 @@ import store, { persistor } from "./store";
 import "primereact/resources/themes/saga-blue/theme.css"; // or any other theme
 import { PersistGate } from "redux-persist/integration/react";
 import "primereact/resources/primereact.min.css";
-
+import { PrimeReactProvider } from "primereact/api";
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <BrowserRouter>
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-        <App />
+        <PrimeReactProvider>
+          <App />
+        </PrimeReactProvider>
       </PersistGate>
     </Provider>
-  </BrowserRouter>
+  </BrowserRouter>,
 );
 
 // If you want to start measuring performance in your app, pass a function

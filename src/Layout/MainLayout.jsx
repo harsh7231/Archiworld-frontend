@@ -14,9 +14,6 @@ function MainLayout({ children }) {
   const isLoginRoute = location === "/";
 
   useEffect(() => {
-    if (location !== "/edit-user") {
-      localStorage.removeItem("userToEdit");
-    }
     if (location !== "/edit-subscription") {
       localStorage.removeItem("subscriptionPlanToEdit");
     }
@@ -45,7 +42,7 @@ function MainLayout({ children }) {
           } `}
         >
           <div className="flex justify-start items-start w-full h-fit">
-            <div className="lg:hidden w-[4rem] px-3 h-fit">
+            <div className="lg:hidden w-[4rem] px-3 py-2 h-fit">
               {isExpanded ? (
                 <></>
               ) : (
@@ -57,7 +54,10 @@ function MainLayout({ children }) {
             </div>
           </div>
           <div className="flex-1 w-full h-full bg-[#f8f8f8] overflow-auto px-4 sm:px-6 lg:px-8 scrollbar-visible">
-            <div className="py-6 w-full h-full" onClick={() => isExpanded && setIsExpanded(false)}>
+            <div
+              className="py-6 w-full h-full"
+              onClick={() => isExpanded && setIsExpanded(false)}
+            >
               {children}
               <div className="relative h-8"></div>
             </div>

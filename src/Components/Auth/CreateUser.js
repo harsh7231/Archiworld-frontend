@@ -9,27 +9,54 @@ import {
   CardTitle,
 } from "../../ui/Card";
 import { InputOtp } from "primereact/inputotp";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Label } from "@radix-ui/react-label";
 import { InputText } from "primereact/inputtext";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useParams } from "wouter";
 import { toast } from "react-toastify";
 import { useDispatch, useSelector } from "react-redux";
-import { createUser, resendOTP, sendOTP, updateUser, verifyOTP } from "./authAPI";
+import {
+  fetchUserById,
+  createUser,
+  resendOTP,
+  sendOTP,
+  updateUser,
+  verifyOTP,
+} from "./authAPI";
 import { Dropdown } from "primereact/dropdown";
 import { MultiSelect } from "primereact/multiselect";
 import show from "../../assets/show.png";
 import hide from "../../assets/hide.png";
 import { State, City } from "country-state-city";
 import { Editor } from "primereact/editor";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../../ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../../ui/dialog";
 import { fetchPlans } from "../SubscriptionPlan/subscriptionAPI";
+import { fetchCategory } from "../CategoryManagement/categoriesAPI";
+import BASEURL from "../../BaseUrl";
 
 export default function CreateUser() {
-  const parsedUserToEdit = useMemo(() => {
-    const storedUserToEdit = localStorage.getItem("userToEdit");
-    return storedUserToEdit ? JSON.parse(storedUserToEdit) : null;
-  }, []);
+  const { userId } = useParams();
+  const dispatch = useDispatch();
+  const { userById, loadingFetch, errorFetch } = useSelector(
+    (state) => state.users,
+  );
+  const { categories, subCategories } = useSelector((s) => s.category);
+  const [availableSubCategories, setAvailableSubCategories] = useState([]);
+  const fetchUserDetails = useCallback(() => {
+    dispatch(fetchUserById(userId));
+  }, [dispatch, userId]);
+
+  // 👇 useEffect will only run once and call the fetch function
+  useEffect(() => {
+    fetchUserDetails();
+  }, [fetchUserDetails]);
+
   const [showPassword, setShowPassword] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { user } = useSelector((state) => state.auth);
@@ -38,6 +65,8 @@ export default function CreateUser() {
     contactPerson: "",
     email: "",
     mobile: "",
+    whatsappMobile: "",
+    website: "",
     username: "",
     password: "",
     address: "",
@@ -47,8 +76,10 @@ export default function CreateUser() {
     about: "",
     emailVerified: false,
     subscription: null,
-    profileLogo: null,      // File
-    bannerImage: null,      // File
+    profileLogo: null, // File
+    bannerImage: null, // File
+    category: [],
+    subCategories: [],
   });
   const [catalogues, setCatalogues] = useState([]); // [{ pdf: File/URL, banner: File/URL }]
   const { plans } = useSelector((state) => state.plan);
@@ -57,13 +88,53 @@ export default function CreateUser() {
   const [serviceArea, setServiceArea] = useState([]);
   const [cities, setCities] = useState([]);
   const [location, navigate] = useLocation();
-  const dispatch = useDispatch();
   const [isSaving, setIsSaving] = useState(false);
   const [workingSchedule, setWorkingSchedule] = useState({
-    days: [],        // ["Monday", "Tuesday", "Friday"]
+    days: [], // ["Monday", "Tuesday", "Friday"]
     from: "09:00",
     to: "18:30",
-  });  
+  });
+
+  useEffect(() => {
+    dispatch(fetchCategory());
+  }, [dispatch]);
+
+  const fetchSubCategoriesForCategories = useCallback(
+    async (categoryIds) => {
+      const mergedSubCategories = [];
+
+      for (const catId of categoryIds) {
+        try {
+          const response = await fetch(
+            `${BASEURL}/api/get-subCategories/${catId}`,
+          );
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            data.forEach((sc) => {
+              const catName =
+                categories.find((c) => c._id === catId)?.name || "";
+              mergedSubCategories.push({
+                label: `${sc.name} (${catName})`,
+                value: sc._id,
+              });
+            });
+          }
+        } catch (error) {
+          console.error("Failed to fetch sub-category:", error);
+        }
+      }
+
+      return mergedSubCategories;
+    },
+    [categories], // ✅ depends only on categories array
+  );
+
+  const handleCategorySelect = async (categoryIds) => {
+    setFormData((prev) => ({ ...prev, category: categoryIds }));
+    const mergedSubCategories =
+      await fetchSubCategoriesForCategories(categoryIds);
+    setAvailableSubCategories(mergedSubCategories);
+  };
 
   useEffect(() => {
     dispatch(fetchPlans());
@@ -71,12 +142,13 @@ export default function CreateUser() {
 
   useEffect(() => {
     if (location === "/create-user") {
-      localStorage.removeItem("userToEdit");
       setFormData({
         name: "",
         contactPerson: "",
         email: "",
         mobile: "",
+        whatsappMobile: "",
+        website: "",
         username: "",
         password: "",
         address: "",
@@ -86,12 +158,14 @@ export default function CreateUser() {
         about: "",
         emailVerified: false,
         subscription: null,
-        profileLogo: null,      // File
-        bannerImage: null,      // File
+        profileLogo: null, // File
+        bannerImage: null, // File
+        category: [],
+        subCategories: [],
       });
-    } else if (location === "/edit-user" && parsedUserToEdit) {
+    } else if (location.startsWith("/edit-user") && userById.name) {
       const stateObj = State.getStatesOfCountry("IN").find(
-        (s) => s.name === parsedUserToEdit.state
+        (s) => s.name === userById.state,
       );
       const stateCode = stateObj ? stateObj.isoCode : "";
       // Populate cities for the selected state
@@ -103,37 +177,57 @@ export default function CreateUser() {
         : [];
       setCities(citiesList);
       setFormData({
-        name: parsedUserToEdit.name || "",
-        contactPerson: parsedUserToEdit.contactPerson || "",
-        email: parsedUserToEdit.email || "",
-        mobile: parsedUserToEdit.mobile || "",
-        username: parsedUserToEdit.username || "",
+        name: userById.name || "",
+        contactPerson: userById.contactPerson || "",
+        email: userById.email || "",
+        mobile: userById.mobile || "",
+        whatsappMobile: userById.whatsappMobile || "",
+        website: userById.website || "",
+        username: userById.username || "",
         password: "",
-        address: parsedUserToEdit.address || "",
+        address: userById.address || "",
         state: stateCode, // store ISO code for dropdown selection
-        city: parsedUserToEdit.city || "",
-        serviceState: parsedUserToEdit.serviceState || [],
-        about: parsedUserToEdit.about || "",
-        emailVerified: parsedUserToEdit.emailVerified || false,
-        subscription: parsedUserToEdit.subscription?._id || null,
-        profileLogo: parsedUserToEdit.profileLogo || null,      // File
-        bannerImage: parsedUserToEdit.bannerImage || null,      // File
+        city: userById.city || "",
+        serviceState: userById.serviceState || [],
+        about: userById.about || "",
+        emailVerified: userById.emailVerified || false,
+        subscription: userById.subscription?._id || null,
+        profileLogo: userById.profileLogo || null, // File
+        bannerImage: userById.bannerImage || null, // File
+        category: userById.category || [],
+        subCategories: userById.subCategories || [],
       });
       setWorkingSchedule(
-        parsedUserToEdit.workingSchedule || {
+        userById.workingSchedule || {
           days: [],
           from: "09:00",
           to: "18:30",
-        }
-      );   
+        },
+      );
       setCatalogues(
-        (parsedUserToEdit.catalogues || []).map((c) => ({
+        (userById.catalogues || []).map((c) => ({
           pdf: c.pdf || null,
           banner: c.banner || null,
-        }))
-      );   
+        })),
+      );
     }
-  }, [location, parsedUserToEdit]);
+  }, [location, userById]);
+
+  useEffect(() => {
+    if (userById.name && userById.category?.length) {
+      (async () => {
+        const subCats = await fetchSubCategoriesForCategories(
+          userById.category,
+        );
+        setAvailableSubCategories(subCats);
+        // Also prefill selected subCategories if any
+        setFormData((prev) => ({
+          ...prev,
+          subCategories: userById.subCategories || [],
+        }));
+      })();
+    }
+  }, [userById, categories, fetchSubCategoriesForCategories]);
 
   const handleOnChange = (key, value) => {
     setFormData((prev) => ({
@@ -142,7 +236,7 @@ export default function CreateUser() {
       ...(key === "email" && { emailVerified: false }),
     }));
   };
-  
+
   const toggleDay = (day) => {
     setWorkingSchedule((prev) => ({
       ...prev,
@@ -151,13 +245,13 @@ export default function CreateUser() {
         : [...prev.days, day],
     }));
   };
-  
+
   const handleTimeChange = (field, value) => {
     setWorkingSchedule((prev) => ({
       ...prev,
       [field]: value,
     }));
-  };  
+  };
 
   useEffect(() => {
     // Load Indian states on mount
@@ -169,12 +263,12 @@ export default function CreateUser() {
       State.getStatesOfCountry("IN").map((s) => ({
         label: s.name,
         value: s.isoCode, // for main State dropdown only
-      }))
+      })),
     );
-    setServiceArea([ 
+    setServiceArea([
       { label: "Pan India", value: "Pan India" }, // ✅ extra option
       ...indianStates,
-    ])
+    ]);
   }, []);
 
   const handleStateChange = (e) => {
@@ -184,7 +278,7 @@ export default function CreateUser() {
       (c) => ({
         label: c.name,
         value: c.name,
-      })
+      }),
     );
     setCities(citiesList);
   };
@@ -206,7 +300,7 @@ export default function CreateUser() {
       }));
     }
   };
-  
+
   const customInput = ({ events, props }) => (
     <input {...events} {...props} type="text" className="custom-otp-input" />
   );
@@ -227,7 +321,7 @@ export default function CreateUser() {
   const handleSendOTP = useCallback(
     async (email) => {
       try {
-        const actionResult = await dispatch(sendOTP({email}));
+        const actionResult = await dispatch(sendOTP({ email }));
         if (sendOTP.fulfilled.match(actionResult)) {
           toast.success("OTP sent!");
           return;
@@ -237,13 +331,13 @@ export default function CreateUser() {
         toast.error("An error occurred while sending OTP.");
       }
     },
-    [dispatch]
+    [dispatch],
   );
 
   const handleReSendOTP = useCallback(
     async (email) => {
       try {
-        const actionResult = await dispatch(resendOTP({email}));
+        const actionResult = await dispatch(resendOTP({ email }));
         if (resendOTP.fulfilled.match(actionResult)) {
           toast.success("OTP re-sent!");
           return;
@@ -253,7 +347,7 @@ export default function CreateUser() {
         toast.error("An error occurred while sending OTP.");
       }
     },
-    [dispatch]
+    [dispatch],
   );
 
   const handleVerifyOTP = useCallback(
@@ -266,7 +360,7 @@ export default function CreateUser() {
           setFormData((prev) => ({
             ...prev,
             emailVerified: true,
-          }))
+          }));
           setDialogOpen(false);
           return;
         }
@@ -277,7 +371,7 @@ export default function CreateUser() {
         setIsSaving(false); // ✅ STOP LOADER
       }
     },
-    [dispatch]
+    [dispatch],
   );
 
   const handleAction = (email) => {
@@ -287,8 +381,8 @@ export default function CreateUser() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if(!formData.emailVerified){
-      toast.info("Please verify your email Id")
+    if (!formData.emailVerified) {
+      toast.info("Please verify your email Id");
       return;
     }
     for (let i = 0; i < catalogues.length; i++) {
@@ -296,9 +390,9 @@ export default function CreateUser() {
         toast.error(`Catalogue ${i + 1} must have both PDF and Banner`);
         return;
       }
-    }    
+    }
     const selectedState = State.getStatesOfCountry("IN").find(
-      (s) => s.isoCode === formData.state
+      (s) => s.isoCode === formData.state,
     );
     const finalFormData = {
       ...formData,
@@ -309,15 +403,15 @@ export default function CreateUser() {
 
     const formDataToSend = new FormData();
     const existingCatalogues = catalogues
-      .filter(c => typeof c.pdf === "string" && typeof c.banner === "string")
-      .map(c => ({
+      .filter((c) => typeof c.pdf === "string" && typeof c.banner === "string")
+      .map((c) => ({
         pdf: c.pdf,
         banner: c.banner,
       }));
-    
+
     formDataToSend.append(
       "existingCatalogues",
-      JSON.stringify(existingCatalogues)
+      JSON.stringify(existingCatalogues),
     );
 
     catalogues.forEach((item) => {
@@ -328,11 +422,11 @@ export default function CreateUser() {
         formDataToSend.append("catalogueBanner", item.banner);
       }
     });
-     
+
     // FILES — IMPORTANT
     if (formData.profileLogo) {
       formDataToSend.append("profileLogo", formData.profileLogo);
-    }    
+    }
 
     if (formData.bannerImage) {
       formDataToSend.append("bannerImage", formData.bannerImage);
@@ -340,23 +434,23 @@ export default function CreateUser() {
     // Append other fields
     Object.entries(finalFormData).forEach(([key, value]) => {
       if (value === null || value === undefined) return;
-    
+
       if (key === "profileLogo" || key === "bannerImage") return;
-    
+
       if (Array.isArray(value) || typeof value === "object") {
-        formDataToSend.append(key, JSON.stringify(value));
+        formDataToSend.append(key, JSON.stringify(value)); // ✅ includes subCategories
       } else {
         formDataToSend.append(key, value);
       }
-    });        
+    });
 
-    if (parsedUserToEdit) {
+    if (userById.name) {
       formDataToSend.delete("password");
       dispatch(
         updateUser({
-          id: parsedUserToEdit._id,
+          id: userById._id,
           formData: formDataToSend,
-        })
+        }),
       )
         .then((action) => {
           if (action.error) {
@@ -380,6 +474,8 @@ export default function CreateUser() {
             contactPerson: "",
             email: "",
             mobile: "",
+            whatsappMobile: "",
+            website: "",
             username: "",
             password: "",
             address: "",
@@ -389,8 +485,8 @@ export default function CreateUser() {
             about: "",
             emailVerified: false,
             subscription: null,
-            profileLogo: null,      // File
-            bannerImage: null,      // File
+            profileLogo: null, // File
+            bannerImage: null, // File
             catalogues: [],
           });
           navigate("/user-management");
@@ -421,6 +517,24 @@ export default function CreateUser() {
     </span>
   );
 
+  if (userId && loadingFetch) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <span className="text-gray-600 text-lg">Loading user details...</span>
+      </div>
+    );
+  }
+
+  if (userId && errorFetch) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <p className="text-red-600 font-medium">Failed to load user details</p>
+        <p className="text-sm text-gray-500">{errorFetch}</p>
+        <Button onClick={() => fetchUserDetails()}>Retry</Button>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center mb-6">
@@ -435,12 +549,12 @@ export default function CreateUser() {
         </Button>
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">
-            {parsedUserToEdit
-              ? `Edit Profile ${parsedUserToEdit.name}`
+            {userById.name
+              ? `Edit Profile ${userById.name}`
               : "Create New User"}
           </h1>
           <p className="mt-1 text-sm text-gray-500">
-            {parsedUserToEdit
+            {userById.name
               ? "Edit a User to your system"
               : "Add a new User to your system under you"}
           </p>
@@ -450,7 +564,7 @@ export default function CreateUser() {
         <CardHeader>
           <CardTitle>User Information</CardTitle>
           <CardDescription>
-            {parsedUserToEdit
+            {userById.name
               ? "Edit the details you want to edit"
               : "Enter the details for the new user"}
           </CardDescription>
@@ -459,11 +573,13 @@ export default function CreateUser() {
           <CardContent>
             <div className="flex flex-col gap-3">
               <div className="w-full flex flex-col gap-1 px-3">
-                <Label >Profile Logo (1:1)</Label>
+                <Label>Profile Logo (1:1)</Label>
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => handleOnChange("profileLogo", e.target.files[0])}
+                  onChange={(e) =>
+                    handleOnChange("profileLogo", e.target.files[0])
+                  }
                 />
                 <p className="text-xs text-gray-500">
                   Recommended size: <b>512 x 512</b>
@@ -506,7 +622,9 @@ export default function CreateUser() {
                     required
                     name="contactPerson"
                     id="contactPerson"
-                    onChange={(e) => handleOnChange("contactPerson", e.target.value)}
+                    onChange={(e) =>
+                      handleOnChange("contactPerson", e.target.value)
+                    }
                     className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none shadow-none bg-input"
                   />
                 </div>
@@ -527,13 +645,13 @@ export default function CreateUser() {
                       onChange={(e) => handleOnChange("email", e.target.value)}
                       className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none shadow-none bg-input"
                     />
-                    <Button 
-                      variant={formData.emailVerified ? "green" : "default"} 
+                    <Button
+                      variant={formData.emailVerified ? "green" : "default"}
                       disabled={formData.emailVerified}
-                      onClick={()=> handleAction(formData.email)}
+                      onClick={() => handleAction(formData.email)}
                     >
                       {formData.emailVerified ? `Verified` : "Verify"}
-                      {formData.emailVerified ? <Verified/> : <></>}
+                      {formData.emailVerified ? <Verified /> : <></>}
                     </Button>
                   </div>
                 </div>
@@ -556,6 +674,41 @@ export default function CreateUser() {
                   />
                 </div>
                 <div className="w-full flex flex-col gap-1">
+                  <Label className="px-3">
+                    Whatsapp Mobile Number{" "}
+                    <span className="text-red-600">*</span>
+                  </Label>
+                  <InputText
+                    required
+                    type="tel"
+                    value={formData.whatsappMobile}
+                    minLength={10}
+                    maxLength={10}
+                    onChange={(e) => {
+                      const digitsOnly = e.target.value.replace(/\D/g, ""); // Remove all non-digits
+                      handleOnChange("whatsappMobile", digitsOnly);
+                    }}
+                    placeholder="Enter Whatsapp Mobile Number"
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none shadow-none bg-input"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col lg:flex-row gap-3 w-full">
+                <div className="w-full flex flex-col gap-1">
+                  <Label htmlFor="website" className="px-3">
+                    website <span className="text-red-600">*</span>
+                  </Label>
+                  <InputText
+                    type="text"
+                    placeholder="Enter Website Link"
+                    name="website"
+                    id="website"
+                    value={formData.website}
+                    onChange={(e) => handleOnChange("website", e.target.value)}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-md focus:outline-none shadow-none bg-input"
+                  />
+                </div>
+                <div className="w-full flex flex-col gap-1">
                   <Label htmlFor="username" className="px-3">
                     Username <span className="text-red-600">*</span>
                   </Label>
@@ -572,23 +725,62 @@ export default function CreateUser() {
                   />
                 </div>
                 <div className="w-full flex flex-col gap-1">
-                  <Label className="px-3">
-                    Subscription Plan 
-                  </Label>
+                  <Label className="px-3">Subscription Plan</Label>
                   <Dropdown
                     placeholder="Select Subscription Plan"
                     options={subscriptionOptions}
                     value={formData.subscription}
-                    onChange={(e) =>
-                      handleOnChange("subscription", e.value)
-                    }
+                    onChange={(e) => handleOnChange("subscription", e.value)}
                     disabled={user?.parentId}
                     checkmark
-                    className="w-full px-1 text-sm border border-gray-300 rounded-md bg-input"
+                    className="w-full px-1 text-sm border border-gray-300 rounded-md bg-input shadow-none"
                   />
                 </div>
               </div>
-              {!parsedUserToEdit && (
+              <div className="flex flex-col lg:flex-row gap-3 w-full">
+                <div className="w-full flex flex-col gap-1">
+                  <Label htmlFor={"Category"} className="px-3">
+                    Category
+                  </Label>
+
+                  <MultiSelect
+                    placeholder="Select Categories"
+                    options={categories.map((sc) => ({
+                      label: sc.name,
+                      value: sc._id,
+                    }))}
+                    value={formData.category}
+                    onChange={(e) => handleCategorySelect(e.value)}
+                    checkmark
+                    showSelectAll
+                    selectAllLabel="Select All"
+                    maxSelectedLabels={3}
+                    className="w-full px-1 text-sm border border-gray-300 rounded-md bg-input shadow-none"
+                  />
+                </div>
+                <div className="w-full flex flex-col gap-1">
+                  <Label htmlFor={subCategories} className="px-3">
+                    Sub-Categories
+                  </Label>
+                  <MultiSelect
+                    placeholder="Select Sub-Categories"
+                    options={availableSubCategories}
+                    value={formData.subCategories}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        subCategories: e.value,
+                      }))
+                    }
+                    checkmark
+                    showSelectAll
+                    maxSelectedLabels={3}
+                    selectAllLabel="Select All"
+                    className="w-full px-1 text-sm border border-gray-300 rounded-md bg-input shadow-none"
+                  />
+                </div>
+              </div>
+              {!userById.name && (
                 <div className="flex flex-col gap-1">
                   <Label htmlFor="password" className="px-3">
                     Password <span className="text-red-600">*</span>
@@ -632,9 +824,7 @@ export default function CreateUser() {
                   />
                 </div>
                 <div className="w-full flex flex-col gap-1">
-                  <Label className="px-3">
-                    State 
-                  </Label>
+                  <Label className="px-3">State</Label>
                   <Dropdown
                     placeholder="Select State"
                     options={states}
@@ -646,9 +836,7 @@ export default function CreateUser() {
                   />
                 </div>
                 <div className="w-full flex flex-col gap-1">
-                  <Label className="px-3">
-                    City 
-                  </Label>
+                  <Label className="px-3">City</Label>
                   <Dropdown
                     placeholder="Select City"
                     value={formData.city}
@@ -757,8 +945,8 @@ export default function CreateUser() {
                           if (!file) return;
                           setCatalogues((prev) =>
                             prev.map((c, i) =>
-                              i === idx ? { ...c, pdf: file } : c
-                            )
+                              i === idx ? { ...c, pdf: file } : c,
+                            ),
                           );
                         }}
                       />
@@ -784,8 +972,8 @@ export default function CreateUser() {
                           if (!file) return;
                           setCatalogues((prev) =>
                             prev.map((c, i) =>
-                              i === idx ? { ...c, banner: file } : c
-                            )
+                              i === idx ? { ...c, banner: file } : c,
+                            ),
                           );
                         }}
                       />
@@ -806,21 +994,30 @@ export default function CreateUser() {
                     <button
                       type="button"
                       onClick={() =>
-                        setCatalogues((prev) => prev.filter((_, i) => i !== idx))
+                        setCatalogues((prev) =>
+                          prev.filter((_, i) => i !== idx),
+                        )
                       }
                       className="text-red-500"
                     >
-                      <Trash2 className="w-6 h-6"/>
+                      <Trash2 className="w-6 h-6" />
                     </button>
                   </div>
                 ))}
                 <Button
-                  onClick={() => setCatalogues((prev) => [...prev, { pdf: null, banner: null }])}
+                  onClick={() =>
+                    setCatalogues((prev) => [
+                      ...prev,
+                      { pdf: null, banner: null },
+                    ])
+                  }
                 >
-                  <Plus />Add Catalogue
+                  <Plus />
+                  Add Catalogue
                 </Button>
               </div>
             </div>
+
             <div className="border-t border-gray-200 pt-4 mt-4">
               <div className="w-full flex flex-col gap-1">
                 <Label className="px-3">About Brand</Label>
@@ -841,15 +1038,15 @@ export default function CreateUser() {
               </Button>
             </Link>
             <div className="w-fit flex flex-col lg:flex-row gap-5 items-center">
-            <Button type="submit" disabled={isSaving}>
-              {isSaving
-                ? parsedUserToEdit
-                  ? "Updating..."
-                  : "Creating..."
-                : parsedUserToEdit
-                ? "Update User"
-                : "Create User"}
-            </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving
+                  ? userById.name
+                    ? "Updating..."
+                    : "Creating..."
+                  : userById.name
+                    ? "Update User"
+                    : "Create User"}
+              </Button>
             </div>
           </CardFooter>
         </form>
@@ -890,11 +1087,11 @@ export default function CreateUser() {
                 inputTemplate={customInput}
               />
               <button
-                onClick={()=> handleReSendOTP(formData.email)}
+                onClick={() => handleReSendOTP(formData.email)}
                 className="text-primary underline-offset-4 hover:underline text-sm"
               >
-              Resend OTP
-              </button>                  
+                Resend OTP
+              </button>
             </div>
           </DialogHeader>
           <DialogFooter>
