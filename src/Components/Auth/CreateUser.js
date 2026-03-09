@@ -49,7 +49,7 @@ export default function CreateUser() {
   const { categories, subCategories } = useSelector((s) => s.category);
   const [availableSubCategories, setAvailableSubCategories] = useState([]);
   const fetchUserDetails = useCallback(() => {
-    dispatch(fetchUserById(userId));
+    if (userId) dispatch(fetchUserById(userId));
   }, [dispatch, userId]);
 
   // 👇 useEffect will only run once and call the fetch function
