@@ -1,3 +1,4 @@
-const BASEURL = "http://api.archiworld.in"
+const BASEURL = "https://api.archiworld.in"
 export default BASEURL;
+
 
