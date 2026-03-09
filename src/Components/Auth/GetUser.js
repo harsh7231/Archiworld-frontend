@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, Edit, Plus, Search, Trash2 } from "lucide-react";
 import {
   Table,
@@ -13,6 +13,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "../../ui/Card";
@@ -29,47 +30,49 @@ import { Link, useLocation } from "wouter";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchUsers, inActiveUser } from "./authAPI";
 import { toast } from "react-toastify";
+import { Paginator } from "primereact/paginator";
+import { template1 } from "../../ui/pagination";
 
 export default function GetUser() {
   const dispatch = useDispatch();
-  const { users, loading, error } = useSelector((state) => state.users);
+  const { users = [], loading, error } = useSelector((state) => state.users);
   const { user } = useSelector((state) => state.auth);
-  const [filteredUsers, setFilteredUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  const debounceTimeout = useRef(null);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [rows, setRows] = useState(25);
+
+  // Update debouncedSearchTerm with a delay
+  useEffect(() => {
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+
+    debounceTimeout.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 1000); // 500ms debounce delay
+  }, [searchTerm]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userrToDelete, setUserToDelete] = useState(null);
   const [, navigate] = useLocation();
 
   useEffect(() => {
-    dispatch(fetchUsers());
-  }, [dispatch]);
-
-  useEffect(() => {
-    const sortByIsActiveAndName = (a, b) => {
-      // First sort by isActive (true > false)
-      if (b.isActive !== a.isActive) {
-        return b.isActive - a.isActive;
-      }
-      // If isActive is the same, sort by name ascending
-      return a.name?.localeCompare(b.name);
-    };
-
-    if (searchTerm === "") {
-      setFilteredUsers([...(users || [])].sort(sortByIsActiveAndName));
-    } else {
-      setFilteredUsers(
-        users
-          .filter(
-            (item) =>
-              item?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              item?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              item?.mobile?.includes(searchTerm) ||
-              item?.username?.toLowerCase().includes(searchTerm.toLowerCase())
-          )
-          .sort(sortByIsActiveAndName)
-      );
-    }
-  }, [searchTerm, users]);
+    dispatch(
+      fetchUsers({
+        searchTerm: debouncedSearchTerm,
+        page: currentPage,
+        rows,
+      }),
+    )
+      .unwrap()
+      .then((res) => {
+        // ✅ Use API response instead of stale state dependency
+        setTotalRecords(res?.totalCount || 0);
+      })
+      .catch((err) => {
+        console.error("Error fetching orders:", err);
+      });
+  }, [dispatch, debouncedSearchTerm, currentPage, rows]);
 
   const handleDeleteClick = (user) => {
     setUserToDelete(user);
@@ -104,12 +107,14 @@ export default function GetUser() {
               Manage your users effectively.
             </p>
           </div>
-          <Link href="/create-user">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create User
-            </Button>
-          </Link>
+          {user.parentId === null && (
+            <Link href="/create-user">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create User
+              </Button>
+            </Link>
+          )}
         </div>
 
         <Card>
@@ -144,7 +149,7 @@ export default function GetUser() {
                   There was an error fetching users. Please try again later.
                 </p>
               </div>
-            ) : filteredUsers.length > 0 ? (
+            ) : users.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -161,10 +166,8 @@ export default function GetUser() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((item, index) => (
-                    <TableRow
-                      key={index}
-                    >
+                  {users.map((item, index) => (
+                    <TableRow key={index}>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{item.contactPerson}</TableCell>
                       <TableCell>{item.email}</TableCell>
@@ -177,11 +180,7 @@ export default function GetUser() {
                           variant="ghost"
                           size="sm"
                           onClick={() => {
-                            localStorage.setItem(
-                              "userToEdit",
-                              JSON.stringify(item)
-                            );
-                            navigate("/edit-user");
+                            navigate(`/edit-user/${item._id}`);
                           }}
                           className="h-8 w-8 p-0"
                         >
@@ -216,16 +215,33 @@ export default function GetUser() {
                     : "Get started by creating a new User."}
                 </p>
                 <div className="mt-6">
-                  <Link href="/create-user">
-                    <Button>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create User
-                    </Button>
-                  </Link>
+                  {user.parentId === null && (
+                    <Link href="/create-user">
+                      <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create User
+                      </Button>
+                    </Link>
+                  )}
                 </div>
               </div>
             )}
           </CardContent>
+          {totalRecords > 25 && (
+            <CardFooter className="flex justify-between border-t pt-6">
+              <Paginator
+                template={template1}
+                first={currentPage * rows}
+                rows={rows}
+                totalRecords={totalRecords}
+                onPageChange={(e) => {
+                  setCurrentPage(e.first / e.rows); // Correctly set page number
+                  setRows(e.rows);
+                }}
+                className="flex gap-2 ml-auto justify-end"
+              />
+            </CardFooter>
+          )}
         </Card>
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <DialogContent>

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  BarChart2,
   Settings,
   ChevronDown,
   ChevronUp,
@@ -12,6 +11,13 @@ import {
   PlusCircleIcon,
   Podcast,
   Library,
+  ChartBarStacked,
+  Layers2,
+  Building,
+  Command,
+  ShoppingCart,
+  ShoppingBagIcon,
+  LayersPlus,
 } from "lucide-react";
 import logo from "../assets/logo.png";
 import { toast } from "react-toastify";
@@ -113,34 +119,78 @@ export default function Sidebar({ isExpanded, setIsExpanded }) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto pt-4 pb-4">
           <div className="px-2 space-y-1">
-            <NavItem
-              href="/dashboard"
-              icon={<BarChart2 className="h-5 w-5" />}
-              label="Dashboard"
-              active={location === "/dashboard"}
-            />
-            {user?.parent === null && 
+            {user?.parentId === null && (
+              <>
+                <NavItem
+                  href="/brand-options"
+                  icon={<Building className="h-5 w-5" />}
+                  label="Brand Options"
+                  active={location === "/brand-options"}
+                />
+                <NavItem
+                  href="/material-options"
+                  icon={<Command className="h-5 w-5" />}
+                  label="Material Options"
+                  active={location === "/material-options"}
+                />
+                <NavGroup
+                  icon={<ChartBarStacked className="h-5 w-5" />}
+                  label="Category Management"
+                  defaultOpen={location.startsWith("/category-management")}
+                >
+                  <NavItem
+                    href="/category-management"
+                    icon={<Layers2 className="h-4 w-4" />}
+                    label="Category Management"
+                    active={location === "/category-management"}
+                  />
+                </NavGroup>
+                <NavGroup
+                  icon={<Podcast className="h-5 w-5" />}
+                  label="Subscription Plans"
+                  defaultOpen={
+                    location.startsWith("/create-subscription") ||
+                    location.startsWith("/edit-subscription") ||
+                    location.startsWith("/subscription-management")
+                  }
+                >
+                  <NavItem
+                    href="/create-subscription"
+                    icon={<PlusCircleIcon className="h-4 w-4" />}
+                    label="Create Subscription"
+                    active={location === "/create-subscription"}
+                  />
+                  <NavItem
+                    href="/subscription-management"
+                    icon={<Library className="h-4 w-4" />}
+                    label="Subscription Record"
+                    active={location === "/subscription-management"}
+                  />
+                </NavGroup>
+              </>
+            )}
             <NavGroup
-            icon={<Podcast className="h-5 w-5" />}
-            label="Subscription Plans"
-            defaultOpen={
-              location.startsWith("/create-subscription") ||
-              location.startsWith("/edit-subscription") || location.startsWith("/subscription-management")
-            }
-          >
-            <NavItem
-              href="/create-subscription"
-              icon={<PlusCircleIcon className="h-4 w-4" />}
-              label="Create Subscription"
-              active={location === "/create-subscription"}
-            />
-            <NavItem
-              href="/subscription-management"
-              icon={<Library className="h-4 w-4" />}
-              label="Subscription Record"
-              active={location === "/subscription-management"}
-            />
-          </NavGroup>}
+              icon={<ShoppingCart className="h-5 w-5" />}
+              label="Product"
+              defaultOpen={
+                location.startsWith("/create-product") ||
+                location.startsWith("/edit-product") ||
+                location.startsWith("/product-management")
+              }
+            >
+              <NavItem
+                href="/create-product"
+                icon={<LayersPlus className="h-4 w-4" />}
+                label="Create Product"
+                active={location === "/create-product"}
+              />
+              <NavItem
+                href="/product-management"
+                icon={<ShoppingBagIcon className="h-4 w-4" />}
+                label="Manage Product"
+                active={location === "/product-management"}
+              />
+            </NavGroup>
             <NavGroup
               icon={<Settings className="h-5 w-5" />}
               label="Settings"
@@ -149,12 +199,14 @@ export default function Sidebar({ isExpanded, setIsExpanded }) {
                 location.startsWith("/change-password")
               }
             >
-              <NavItem
-                href="/user-management"
-                icon={<Users className="h-4 w-4" />}
-                label="User Management"
-                active={location === "/user-management"}
-              />
+              {user?.parent === null && (
+                <NavItem
+                  href="/user-management"
+                  icon={<Users className="h-4 w-4" />}
+                  label="User Management"
+                  active={location === "/user-management"}
+                />
+              )}
               <NavItem
                 href="/change-password"
                 icon={<Database className="h-4 w-4" />}
@@ -167,7 +219,10 @@ export default function Sidebar({ isExpanded, setIsExpanded }) {
         {/* User Profile */}
         <div className="border-t border-gray-700 p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center justify-center">
+            <div
+              className="flex items-center justify-center cursor-pointer"
+              onClick={() => navigate(`/edit-user/${user._id}`)}
+            >
               {typeof user?.profileLogo === "string" ? (
                 <img
                   src={`${user?.profileLogo}`}
@@ -177,11 +232,11 @@ export default function Sidebar({ isExpanded, setIsExpanded }) {
                     e.target.src = "/placeholder.png";
                   }}
                 />
-              ) :
+              ) : (
                 <div className="!aspect-square p-2 rounded-full bg-black flex items-center justify-center text-white font-semibold leading-none">
                   {getInitials(user?.name)}
                 </div>
-              }
+              )}
             </div>
             <div className="w-1/2 overflow-scroll">
               <p className="text-sm font-medium text-white">{user?.name}</p>

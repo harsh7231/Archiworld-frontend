@@ -16,6 +16,9 @@ h2 {
 input[type="number"] {
   --moz-appearance: textfield;
 }
+.p-checkbox .p-checkbox-box {
+  border: 1px solid #d1d5db !important;
+}
 /* Remove shadow from filter input */
 .no-shadow-panel .p-multiselect-filter-container input {
   box-shadow: none !important;

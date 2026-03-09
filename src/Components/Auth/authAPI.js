@@ -21,11 +21,52 @@ export const login = createAsyncThunk(
   }
 );
 
+let cancelToken;
 export const fetchUsers = createAsyncThunk(
   "users/fetchUsers",
-  async (_, thunkAPI) => {
+  async ({
+    searchTerm = "",
+    page = 0,
+    rows = 25,
+  }, thunkAPI) => {
+    try {
+      if (cancelToken) {
+        cancelToken.cancel("New request initiated, cancelling previous one");
+      }
+      cancelToken = axios.CancelToken.source();
+      const body = {
+        search: searchTerm,
+        skip: page * rows,
+        take: rows,
+      };
+
+      const response = await axios.post(
+        `${BASEURL}/api/parent`,
+        body,
+        {
+          ...getAuthHeaders(thunkAPI),
+          cancelToken: cancelToken.token,
+        });
+      return {
+        users:response.data.users,
+        totalCount: response.data.totalCount
+      }
+    } catch (error){
+      if (axios.isCancel(error)) {
+        return;
+      }
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || "Failed to fetch orders."
+      );
+    }
+  }
+);
+
+export const fetchUserById = createAsyncThunk(
+  "users/fetchUserById",
+  async (userId, thunkAPI) => {
     const response = await axios.get(
-      `${BASEURL}/api/parent`,
+      `${BASEURL}/api/get-user/${userId}`,
       getAuthHeaders(thunkAPI)
     );
     return response.data.users;
@@ -107,6 +148,28 @@ export const changePassword = createAsyncThunk(
           email,
           oldPassword,
           newPassword,
+        },
+        getAuthHeaders(thunkAPI)
+      );
+      return response.data; // Return response to store
+    } catch (error) {
+      return thunkAPI.rejectWithValue(
+        error.response?.data?.message || "Failed to change password."
+      );
+    }
+  }
+);
+
+export const handleForgotPassword = createAsyncThunk(
+  "auth/handleForgotPassword",
+  async ({ email, newPassword, otp }, thunkAPI) => {
+    try {
+      const response = await axios.put(
+        `${BASEURL}/api/forgot-password`,
+        {
+          email,
+          newPassword,
+          otp
         },
         getAuthHeaders(thunkAPI)
       );
